@@ -1,6 +1,6 @@
 # Chirpstack 2 domoticz : a plugin to connect LoRa device to Domoticz
 #
-# Author: Nicolas DAUY
+# Author: DiNy
 #
 #   Goal : 
 #       - Log LoRa devices from Chirpstack App Server data into Domoticz
@@ -104,10 +104,16 @@ class BasePlugin:
         ## Devices
         payload = json.loads(message)
         Domoticz.Debug("Payload:\n"+str(payload))
-        RSSI=payload['rxInfo'][0]['rssi']
-        RSSI = int(round(mapFromTo(int(RSSI),-140,-30,0,10), 0))#Domoticz : between 0 and 10
+        if not 'loRaSNR' in str(payload):
+            Domoticz.Log("Decoding LoRa message problem. Check ChirpStack application.")
+            return success
+        RSSI=payload['rxInfo'][0]['loRaSNR']
+        RSSI = int(round(mapFromTo(int(RSSI),-20,0,0,10), 0))#Domoticz : between 0 and 10
         Domoticz.Debug("RSSI : "+str(RSSI))
         CS_objects = json.loads(payload['objectJSON'])
+        if(len(CS_objects) == 0):
+            Domoticz.Log("Decoding cayenne message problem. Check ChirpStack application.")
+            return success
         #Domoticz.Debug(str(CS_objects))#{'temperatureSensor': {'1': 12}, 'humiditySensor': {'1': 80}}
 
         #Reorganize data 
@@ -121,7 +127,7 @@ class BasePlugin:
                     data.append([channel, value, CS_cayenne_to_DZ[str(obj)]])
             else:
                 Domoticz.Log("Unfound/Unproccessable Cayenne Data Type : "+str(obj))
-                return 0
+        
         Domoticz.Debug("DATA structure:"+str(data))
         #[['1', '12', ['Temperature', 243, 17, 'temp']], ['2', '14', ['Temperature', 243, 17, 'temp']], ['3', '15', ['Temperature', 243, 17, 'temp']], ['1', '80', ['Humidity', 243, 3, 'hum']]]
         # #aggregate several sensor types into one sensor. Decide whi one is nvalue, which one is svalue
