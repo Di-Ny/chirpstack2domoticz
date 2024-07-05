@@ -110,21 +110,25 @@ class BasePlugin:
         RSSI=payload['rxInfo'][0]['loRaSNR']
         RSSI = int(round(mapFromTo(int(RSSI),-20,0,0,10), 0))#Domoticz : between 0 and 10
         Domoticz.Debug("RSSI : "+str(RSSI))
-        CS_objects = json.loads(payload['objectJSON'])
+        # Domoticz.Debug("Objects:\n"+str(payload['object']))#{'temperatureSensor': {'1': 12}, 'humiditySensor': {'1': 80}}
+        CS_objects = payload['object']
         if(len(CS_objects) == 0):
             Domoticz.Log("Decoding cayenne message problem. Check ChirpStack application.")
             return success
-        #Domoticz.Debug(str(CS_objects))#{'temperatureSensor': {'1': 12}, 'humiditySensor': {'1': 80}}
+        # Domoticz.Debug(str(CS_objects))#{'temperatureSensor': {'1': 12}, 'humiditySensor': {'1': 80}}
 
         #Reorganize data 
+        #Associate with the CS_cayenne_to_DZ table (mqtt_globals)
         data = []
         for obj in CS_objects :
-            if(str(obj) in CS_cayenne_to_DZ):
+            if str(obj) in CS_cayenne_to_DZ:
                 for channel in CS_objects[str(obj)]:
                     #Get the value of the sensor 
                     value=str(CS_objects[str(obj)][str(channel)])
-                    #build DATA : [Channel, value, [Corresp.DZ_TypeName, Corresp.DZ_pType,DZ_sType, Corresp.FancyName, Corresp.UNIT_ID] ]
+                    #build DATA : [Channel, value, [Corresp.DZ_TypeName   , Corresp.DZ_pType , DZ_sType, Corresp.FancyName, Corresp.UNIT_ID] ]
+                    # Example: 	  ['1'    ,	'22' ,  ['Counter Incremental', 'Custom'		 , ...]] 
                     data.append([channel, value, CS_cayenne_to_DZ[str(obj)]])
+            	#elseif (str(obj) in CS_payload_to_MS):
             else:
                 Domoticz.Log("Unfound/Unproccessable Cayenne Data Type : "+str(obj))
         
@@ -139,8 +143,8 @@ class BasePlugin:
         for x in Devices:
             d_ids.append([str(x),str(Devices[x].ID),str(Devices[x].Name),str(Devices[x].DeviceID)])
             d_units.append(int(x))
-        Domoticz.Debug(str(d_ids))
-        Domoticz.Debug(str(d_units))
+        Domoticz.Debug("d_ids:\n"+str(d_ids))
+        Domoticz.Debug("d_units:\n"+str(d_units))
 
         #Device 
         for d in range(0,len(data_ag)):
@@ -150,7 +154,11 @@ class BasePlugin:
                 device_fancyname = str(data_ag[d][2][3])
                 device_id="eui-"+EUI+"-"+str(data_ag[d][0])+"-"+device_fancyname#eui-a8d4fdf51239f322-1-hum
                 device_Name="Unknown "+device_fancyname
+                #Device type identification. Either there is a TypeName ("tn_") which is a shortcut for Type + Subtype + SwitchType, or theses 3 values are fullfilled
                 device_TypeName=str(data_ag[d][2][0])
+                device_Type=str(data_ag[d][2][1])
+                device_Subtype=str(data_ag[d][2][2])
+                #device_Switchtype=str(data_ag[d][2][0]) NOT IMPLEMENTED YET
 
                 Domoticz.Debug("===================")
                 Domoticz.Debug("device_id: "+str(device_id))
@@ -168,19 +176,39 @@ class BasePlugin:
                         return 0
                     Domoticz.Debug("device_Name: "+str(device_Name))
                     Domoticz.Debug("device_TypeName: "+str(device_TypeName))
+                    Domoticz.Debug("device_Type: "+str(device_Type))
+                    Domoticz.Debug("device_Subtype: "+str(device_Subtype))
                     if self.create_new_devices == "True":
                         Domoticz.Log("ChirpStack Plugin - Create NEW device with ID="+str(device_id)+", Name="+str(device_Name)+", Type="+str(device_TypeName))
-                        #Create
-                        Domoticz.Device(Name=device_Name, TypeName=device_TypeName, Unit=device_Unit, DeviceID=device_id).Create()
+                        #Create. 
+                        if device_TypeName == tn_null:
+                            #Create device with Type + Subtype.
+                            Domoticz.Device(Name=device_Name, Type=device_Type, Subtype=device_Subtype, Unit=device_Unit, DeviceID=device_id).Create()
+                        else:
+                            #Can only create Type Names (tn_) known by Domoticz.
+                            Domoticz.Device(Name=device_Name, TypeName=device_TypeName, Unit=device_Unit, DeviceID=device_id).Create()
                     else:
                         Domoticz.Log("ChirpStack Plugin - DISBALED [Create device "+str(device_id)+"]")
                 for x in Devices:
                     #Check if now exists, and update 
                     if(str(Devices[x].DeviceID) == device_id):
                         device_svalue = str(data_ag[d][1])
+                        device_nvalue = 0
                         #Update
                         Domoticz.Log("Chirpstack Plugin - Update device (ID="+str(Devices[x].ID)+") value ="+data_ag[d][1])
-                        Devices[x].Update(nValue=int(device_svalue), sValue=str(device_svalue), SignalLevel=RSSI)
+                        
+                        #Check if a float should be sent instead of an integer
+                        # if "." in device_svalue or ";" in device_svalue :
+                        #     device_nvalue = 0
+                        # else:
+                        #     device_nvalue = int(float(device_svalue))
+                        #     device_svalue = 0
+                        
+                        #Handle specific cases 
+                        #       RAIN
+                        #       GPS
+                        
+                        Devices[x].Update(nValue=device_nvalue, sValue=str(device_svalue), SignalLevel=RSSI)
                 Domoticz.Debug("===================")
         return success
 
