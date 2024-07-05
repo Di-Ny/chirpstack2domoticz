@@ -28,7 +28,7 @@
 #   - API/api.py
 # License : MIT
 """
-<plugin key="ChirpStack2Dz" name="Chirpstack MQTT to Domoticz" author="DiNy" version="0.0.1" externallink="https://github.com/Di-Ny/chirpstack2domoticz">
+<plugin key="ChirpStack2Dz" name="Chirpstack MQTT to Domoticz" author="DiNy" version="0.0.2" externallink="https://github.com/Di-Ny/chirpstack2domoticz">
     <description>
         <h3>Chirpstack 2 Domoticz notice </h3><br/>
         A plugin to connect LoRa device to Domoticz.
